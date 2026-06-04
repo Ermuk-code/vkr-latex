@@ -1,0 +1,537 @@
+\section{Рабочий проект}
+
+В процессе разработки серверная часть была реализована в виде REST API на базе Django и Django REST Framework. Проект разделён на следующие модули: users, items, bookings, arenda\_site.
+
+
+\subsection{Модуль users}
+
+ 
+Модуль users реализует регистрацию, аутентификацию и управление
+профилем пользователей платформы.
+ 
+\subsubsection{Класс SendEmailVerificationCodeView}
+ 
+SendEmailVerificationCodeView — класс для отправки
+кода подтверждения email. Генерирует шестизначный код, сохраняет его в кэше
+и отправляет пользователю перед регистрацией.
+ 
+Описание методов класса SendEmailVerificationCodeView представлено
+в таблице~\ref{sendemailcode:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{3.5cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса SendEmailVerificationCodeView\label{sendemailcode:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{sendemailcode:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    post & request & Принимает email, проверяет его уникальность. Генерирует шестизначный код, сохраняет в кэше на 15 минут и отправляет на указанный адрес. Возвращает ошибку, если email уже зарегистрирован \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс RegisterView}
+ 
+RegisterView — класс для регистрации нового
+пользователя. Наследует CreateAPIView и расширяет его проверкой
+кода подтверждения email.
+ 
+Описание методов класса RegisterView представлено
+в таблице~\ref{registerview:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{2.5cm}|p{3.5cm}|X|}
+    \caption{Описание методов класса RegisterView\label{registerview:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{registerview:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    create & request, *args, **kwargs & Проверяет наличие и корректность кода подтверждения email\_code из кэша. При успехе создаёт нового пользователя и удаляет код из кэша. При отсутствии или несовпадении кода возвращает HTTP~400 \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс FillByInnView}
+ 
+FillByInnView — класс для автозаполнения реквизитов
+по ИНН. Обращается к внешнему сервису DaData и возвращает данные юридического
+лица или ИП. Доступен без аутентификации.
+ 
+Описание методов класса FillByInnView представлено
+в таблице~\ref{fillbyinn:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{2.5cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса FillByInnView\label{fillbyinn:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{fillbyinn:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    get & request & Принимает параметр inn из строки запроса. Обращается к DaData и возвращает реквизиты: для юридического лица "--- ИНН, КПП, наименование; для ИП "--- ИНН, ОГРНИП, наименование \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс ProfileView}
+ 
+ProfileView — класс для просмотра и редактирования
+профиля текущего пользователя. Требует аутентификации.
+ 
+Описание методов класса ProfileView представлено
+в таблице~\ref{profileview:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{2.5cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса ProfileView\label{profileview:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{profileview:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    get\_object & "--- & Возвращает объект текущего аутентифицированного пользователя \\ \hline
+    get & request & Возвращает сериализованные данные профиля текущего пользователя \\ \hline
+    put & request & Обновляет данные профиля. При заполнении всех обязательных полей устанавливает флаг profile\_completed = True \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс ChangePasswordView}
+ 
+ChangePasswordView — класс для смены пароля
+аутентифицированного пользователя.
+ 
+Описание методов класса ChangePasswordView представлено
+в таблице~\ref{changepassword:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{2.5cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса ChangePasswordView\label{changepassword:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{changepassword:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    post & request & Проверяет корректность текущего пароля (old\_password). При совпадении устанавливает новый пароль (new\_password) и сохраняет пользователя \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс PasswordResetRequestView}
+ 
+PasswordResetRequestView — класс для запроса сброса
+пароля. Генерирует код сброса и отправляет его на email пользователя.
+ 
+Описание методов класса PasswordResetRequestView представлено
+в таблице~\ref{pwresetrequest:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{2.5cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса PasswordResetRequestView\label{pwresetrequest:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{pwresetrequest:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    post & request & Ищет пользователя по переданному email. Генерирует шестизначный код, сохраняет его в кэше на 15 минут и отправляет на почту \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс PasswordResetConfirmView}
+ 
+PasswordResetConfirmView — класс для подтверждения
+сброса пароля по коду из письма.
+ 
+Описание методов класса PasswordResetConfirmView представлено
+в таблице~\ref{pwresetconfirm:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{2.5cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса PasswordResetConfirmView\label{pwresetconfirm:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{pwresetconfirm:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    post & request & Принимает email, code и new\_password. Сверяет код с кэшем, устанавливает новый пароль (не менее 6 символов) и удаляет код из кэша \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+
+\subsection{Модуль items}
+
+ 
+Модуль items реализует создание и управление объявлениями об аренде,
+загрузку медиафайлов, категоризацию и систему модерации.
+ 
+\subsubsection{Класс CategoryViewSet}
+ 
+CategoryViewSet — класс для работы с категориями
+объявлений. Реализует стандартные операции чтения на основе
+ModelViewSet. Категории упорядочены по названию.
+ 
+Описание методов класса CategoryViewSet представлено
+в таблице~\ref{categoryviewset:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{2.5cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса CategoryViewSet\label{categoryviewset:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{categoryviewset:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    list & request & Возвращает список всех категорий, упорядоченных по полю name \\ \hline
+    retrieve & request, pk & Возвращает категорию по идентификатору \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс ItemViewSet}
+ 
+ItemViewSet — основной класс для управления
+объявлениями. Поддерживает фильтрацию по категории и статусу, поиск по
+заголовку и описанию, сортировку по цене, дате и рейтингу. Все создание и
+изменение объявлений автоматически направляются на модерацию.
+ 
+Описание методов класса ItemViewSet представлено
+в таблице~\ref{itemviewset:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{3.5cm}|p{3cm}|X|}
+    \caption{Описание методов класса ItemViewSet\label{itemviewset:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{itemviewset:table}}~
+     \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    get\_queryset & "--- & Возвращает список объявлений: для аутентифицированного пользователя "--- доступные и его собственные; для анонимного "--- только со статусом available. Поддерживает параметры mine и min\_rating \\ \hline
+    get\_permissions & "--- & Назначает права доступа в зависимости от действия: создание требует заполненного профиля (IsProfileCompleted), редактирование и удаление "--- владения объявлением (IsOwner) \\ \hline
+    perform\_create & serializer & Сохраняет объявление со статусом pending и создаёт заявку на модерацию с типом create \\ \hline
+    perform\_update & serializer & Сохраняет изменения, переводит объявление в статус pending и создаёт заявку на модерацию с типом update \\ \hline
+    booked\_ranges & request, pk & Возвращает список занятых диапазонов дат на основе активных бронирований со статусом pending или confirmed \\ \hline
+    reviews & request, pk & GET "--- возвращает список видимых отзывов на объявление. POST "--- создаёт новый отзыв \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс ItemImageUploadView}
+ 
+ItemImageUploadView — класс для загрузки изображений
+к объявлению. Использует парсеры MultiPartParser и
+FormParser для обработки загружаемых файлов. Требует аутентификации.
+ 
+Описание методов класса ItemImageUploadView представлено
+в таблице~\ref{imageupload:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{3.5cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса ItemImageUploadView\label{imageupload:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{imageupload:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    perform\_create & serializer & Сохраняет загруженное изображение, привязывая его к объявлению текущего пользователя \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс ItemImageDeleteView}
+ 
+ItemImageDeleteView — класс для удаления изображений
+объявления. Ограничивает доступ: пользователь может удалять только
+изображения своих объявлений.
+ 
+Описание методов класса ItemImageDeleteView представлено
+в таблице~\ref{imagedelete:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{3.5cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса ItemImageDeleteView\label{imagedelete:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{imagedelete:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    get\_queryset & "--- & Возвращает только изображения, принадлежащие объявлениям текущего пользователя, исключая возможность удаления чужих файлов \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+\subsubsection{Класс ItemModerationRequestViewSet}
+ 
+ItemModerationRequestViewSet — класс для управления
+заявками на модерацию объявлений. Доступен исключительно суперпользователю
+(IsSuperUser).
+ 
+Описание методов класса ItemModerationRequestViewSet представлено
+в таблице~\ref{moderationviewset:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{3cm}|p{2.5cm}|X|}
+    \caption{Описание методов класса ItemModerationRequestViewSet\label{moderationviewset:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{moderationviewset:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    get\_queryset & "--- & Возвращает список заявок с предзагрузкой связанных данных (объявление, владелец, категория, изображения). Поддерживает фильтрацию по параметру status \\ \hline
+    approve & request, pk & Одобряет заявку на модерацию: вызывает сервис approve\_item\_moderation\_request, переводящий объявление в статус available. При статусе заявки, отличном от pending, возвращает HTTP~400 \\ \hline
+    reject & request, pk & Отклоняет заявку: требует непустого поля reason. Вызывает сервис reject\_item\_moderation\_request с указанием причины отказа \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+ 
+
+\subsection{Модуль bookings}
+
+ 
+Модуль bookings реализует полный жизненный цикл аренды: создание
+бронирования, оплату через СБП, подтверждение передачи и возврата вещи,
+управление залогом и отзывами. 
+
+\subsubsection{Класс BookingViewSet}
+ 
+BookingViewSet — основной класс модуля, реализующий
+полный цикл управления бронированием. Все методы требуют аутентификации
+(IsAuthenticated). Поддерживает фильтрацию по параметру role:
+incoming "--- входящие бронирования (пользователь является
+арендодателем), outgoing "--- исходящие (пользователь является
+арендатором).
+ 
+Описание методов класса BookingViewSet представлено
+в таблице~\ref{bookingviewset:table}.
+ 
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{4cm}|p{3cm}|X|}
+    \caption{Описание методов класса BookingViewSet\label{bookingviewset:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название метода & \centrow Аргументы метода & \centrow Описание метода \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{bookingviewset:table}}~
+     \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    get\_queryset & "--- & Возвращает бронирования, в которых текущий пользователь является арендатором или арендодателем. Поддерживает параметр role для фильтрации по роли \\ \hline
+   perform\_create & serializer & Создаёт бронирование: проверяет, что пользователь не бронирует собственную вещь и что его профиль заполнен. Сохраняет renter как текущего пользователя \\ \hline
+    change\_status & booking, new\_status & Вспомогательный метод: устанавливает инициатора смены статуса, вызывает change\_status на модели и возвращает сериализованный ответ \\ \hline
+    ensure\_renter & booking & Вспомогательный метод: проверяет, что текущий пользователь является арендатором. Возвращает HTTP~403 при несоответствии \\ \hline
+    confirm & request, pk & Арендодатель подтверждает бронирование. Переводит статус pending в confirmed. Доступен только владельцу объявления \\ \hline
+    cancel & request, pk & Отменяет бронирование. Доступен обоим участникам сделки \\ \hline
+    renter\_cancel & request, pk & Отмена бронирования арендатором \\ \hline
+    complete & request, pk & Арендодатель завершает аренду. Переводит статус в completed. Доступно только при payment\_status = paid \\ \hline
+    start\_payment & request, pk & Инициирует оплату через СБП. Генерирует payment\_reference (UUID), устанавливает payment\_status = pending и срок действия ссылки 15 минут. Возвращает QR-payload. Доступен только арендатору \\ \hline
+    confirm\_payment & request, pk & Подтверждает факт оплаты. Устанавливает payment\_status = paid и фиксирует paid\_at. Доступен только арендатору \\ \hline
+    confirm\_ren\-ter\_pickup & request, pk & Арендатор подтверждает получение вещи. Принимает необязательный файл photo \\ \hline
+    confirm\_own\-er\_return & request, pk & Арендодатель подтверждает возврат вещи. Принимает необязательный файл photo \\ \hline
+    return\_deposit & request, pk & Арендодатель инициирует возврат залога арендатору \\ \hline
+    request\_refund & request, pk & Арендатор запрашивает возврат средств \\ \hline
+    process\_refund & request, pk & Администратор обрабатывает запрос на возврат средств \\ \hline
+    review & request, pk & Арендатор оставляет отзыв о завершённом бронировании. Допускается только один отзыв; повторная попытка возвращает HTTP~400 \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+
+\subsection{Модуль arenda\_site}
+Модуль arenda\_site является точкой входа Django-проекта и содержит глобальные настройки, корневую маршрутизацию и конфигурацию ASGI. Настройки проекта сосредоточены в файле settings.py, корневая маршрутизация — в urls.py, запуск ASGI-сервера — через asgi.py.
+
+\subsubsection{settings.py}
+
+settings.py — файл глобальных настроек проекта, определяющий
+параметры базы данных, аутентификации, установленных приложений, безопасности
+и инфраструктуры.
+
+Описание параметров модуля settings.py представлено в таблице~\ref{settings:table}.
+
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{5cm}|p{4.5cm}|X|}
+    \caption{Описание параметров модуля settings.py\label{settings:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название параметра & \centrow Значение & \centrow Описание параметра \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{settings:table}}~
+    \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    DEBUG & False & Производственный режим; отключает вывод отладочной информации \\ \hline
+    ALLOWED\_HOSTS & mokitoki.vti-cloud.ru, localhost, 127.0.0.1, web & Список разрешённых хостов для обработки входящих запросов \\ \hline
+    INSTALLED\_APPS & daphne, users, items, bookings, channels, drf\_spectacular, corsheaders, django\_filters, rest\_framework и стандартные приложения Django & Перечень подключённых приложений проекта \\ \hline
+    AUTH\_USER\_MODEL & users.User & Переопределяет стандартную модель пользователя Django на кастомную \\ \hline
+    DATABASES & PostgreSQL~15, хост db, порт 5432 & Параметры подключения к базе данных; значения считываются из переменных окружения файла .env \\ \hline
+    REST\_FRAMEWORK & JWTAuthentication, PageNumber
+    Pagination (10), DjangoFilterBackend, SearchFilter, OrderingFilter & Настройки Django REST Framework: аутентификация, пагинация и фильтрация \\ \hline
+    SIMPLE\_JWT & access "--- 60 минут, refresh "--- 1 сутки & Время жизни JWT-токенов \\ \hline
+    CHANNEL\_LAYERS & Redis, хост redis:6379 & Настройка слоя каналов Django Channels \\ \hline
+    CORS\_ALLO\-WED\_ORIGINS & http://localhost, http://127.0.0.1, http://mokitoki.vti-cloud.ru & Список разрешённых источников для кросс-доменных запросов \\ \hline
+    MEDIA\_ROOT / MEDIA\_URL & директория media/, префикс /media/ & Настройки хранения и отдачи медиафайлов \\ \hline
+    EMAIL\_BACKEND & smtp.EmailBackend, Gmail, порт~587, TLS & Настройки отправки электронной почты \\ \hline
+    SPECTACULAR\_SET\-TINGS & версия 1.0.0, заголовок Diplom API & Настройки генерации OpenAPI-документации; Swagger UI доступен по адресу /api/docs/ \\ \hline
+    SECURE\_BROW\-SER\_XSS\_FILTER, SECURE\_CON\-TENT\_TYPE\_NOSNIFF & True & Заголовки безопасности: защита от XSS и MIME-sniffing \\ \hline
+    LANGUAGE\_CODE / TIME\_ZONE & ru-ru / Europe/Moscow & Локализация и часовой пояс приложения \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+
+\subsubsection{urls.py}
+
+urls.py — файл корневой маршрутизации проекта, подключающий
+URL-конфигурации всех приложений и стандартные маршруты аутентификации.
+
+Описание маршрутов модуля urls.py представлено в таблице~\ref{urls:table}.
+
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{3.9cm}|p{4.5cm}|X|}
+    \caption{Описание маршрутов модуля urls.py\label{urls:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Маршрут & \centrow Подключаемый модуль & \centrow Описание \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \continuecaption{Продолжение таблицы \ref{urls:table}}~
+    \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    /admin/ & django.contrib.admin & Стандартная панель администратора Django \\ \hline
+    /api/token/ & TokenObtainPairView & Получение пары JWT-токенов по логину и паролю \\ \hline
+    /api/token/refresh/ & TokenRefreshView & Обновление access-токена по refresh-токену \\ \hline
+    /api/users/ & users.urls & Маршруты модуля пользователей \\ \hline
+    /api/items/ & items.urls & Маршруты модуля объявлений \\ \hline
+    /api/bookings/ & bookings.urls & Маршруты модуля бронирований \\ \hline
+    /api/schema/ & SpectacularAPIView & Скачивание OpenAPI-схемы в формате YAML \\ \hline
+    /api/docs/ & SpectacularSwagger\-View & Swagger UI "--- интерактивная документация API \\ \hline
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}
+
+
+\subsection{Интеграционное тестирование API}
+
+Интеграционное тестирование проводилось с использованием
+APIClient. Проверялось взаимодействие
+между модулями users, items и bookings
+в рамках полного цикла аренды.
+
+Результаты интеграционного тестирования представлены в таблице~\ref{integtest:table}.
+
+\renewcommand{\arraystretch}{0.8}
+\begin{xltabular}{\textwidth}{|p{3.5cm}|p{5.5cm}|X|}
+    \caption{Результаты интеграционного тестирования API\label{integtest:table}}\\
+    \hline \centrow \setlength{\baselineskip}{0.7\baselineskip} Название теста & \centrow Входные данные & \centrow Ожидаемый результат \\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \endfirsthead
+    \caption*{Продолжение таблицы \ref{integtest:table}}\\
+    \hline \centrow 1 & \centrow 2 & \centrow 3 \\ \hline
+    \finishhead
+    Регистрация нового пользователя &
+    POST /api/users/register/: username='renter1', password='pass123', email='renter@test.com', email\_code='123456' &
+    status\_code=201, в теле ответа username='renter1' \\ \hline
+
+    Получение JWT-токена &
+    POST /api/token/: username='renter1', password='pass123' &
+    status\_code=200, в теле ответа 'access', 'refresh' \\ \hline
+
+    Обновление профиля физического лица &
+    PUT /api/users/profile/: user\_type='individual', full\_name='Иван Иванов', passport\_series='1234', passport\_number='123456', inn='123456789012' &
+    status\_code=200, profile\_completed=true \\ \hline
+
+    Обновление профиля без обязательного поля &
+    PUT /api/users/profile/: user\_type='individual', passport\_number='123456' (без passport\_series) &
+    status\_code=400, в теле ответа 'passport\_series' \\ \hline
+
+    Создание объявления с незаполненным профилем &
+    POST /api/items/: title='Дрель', price\_per\_day=500 (profile\_completed=false) &
+    status\_code=403 \\ \hline
+
+    Создание объявления с заполненным профилем &
+    POST /api/items/: title='Дрель', description='Мощная дрель', price\_per\_day=500 &
+    status\_code=201, status='pending', в БД создана заявка ItemModerationRequest \\ \hline
+
+    Одобрение объявления администратором &
+    POST /api/items/moderation-requests/{id}/approve/ (superuser) &
+    status\_code=200, status='approved', объявление status='available' \\ \hline
+
+    Отклонение объявления администратором &
+    POST /api/items/moderation-requests/{id}/reject/: reason='Недостаточно фото' &
+    status\_code=200, status='rejected', rejection\_reason='Недостаточно фото' \\ \hline
+
+    Загрузка изображения к объявлению &
+    POST /api/items/upload-image/: item=1, image=test.jpg &
+    status\_code=201, item.images.count()=1 \\ \hline
+
+    Удаление изображения объявления &
+    DELETE /api/items/images/{id}/ &
+    status\_code=204, запись удалена из БД \\ \hline
+
+    Получение занятых дат объявления &
+    GET /api/items/
+    {id}/booked\_ranges/ &
+    status\_code=200, в ответе [start\_date='2026-05-10', end\_date='2026-05-12'] \\ \hline
+
+    Создание бронирования &
+    POST /api/bookings/: item=1, start\_date='2026-07-01', end\_date='2026-07-04' &
+    status\_code=201, status='pending', total\_price=1500.00 \\ \hline
+
+    Попытка забронировать собственное объявление &
+    POST /api/bookings/: item=1 (renter=owner) &
+    status\_code=400 \\ \hline
+
+    Создание бронирования с пересекающимися датами &
+    POST /api/bookings/: item=1, start\_date='2026-07-03', end\_date='2026-07-06' (уже занято 01--04) &
+    status\_code=400 \\ \hline
+
+    Редактирование бронирования &
+    PATCH /api/bookings/{id}/: end\_date='2026-07-05' &
+    status\_code=405 \\ \hline
+
+    Подтверждение бронирования владельцем &
+    POST /api/bookings/{id}/confirm/ (от владельца) &
+    status\_code=200, status='confirmed' \\ \hline
+
+    Отмена бронирования арендатором &
+    POST /api/bookings/{id}/cancel/ (от арендатора) &
+    status\_code=200, status='cancelled' \\ \hline
+
+    Инициация оплаты до подтверждения бронирования &
+    POST /api/bookings/
+    {id}/start\_payment/ (status='pending') &
+    status\_code=400, payment\_status='unpaid' \\ \hline
+
+    Инициация оплаты СБП &
+    POST /api/bookings/
+    {id}/start\_payment/ (status='confirmed') &
+    status\_code=200, payment\_status='pending', в ответе 'qr\_payload', provider='sbp\_stub' \\ \hline
+
+    Подтверждение оплаты &
+    POST /api/bookings/
+    {id}/confirm\_payment/ &
+    status\_code=200, payment\_status='paid', paid\_at != null \\ \hline
+
+    Завершение аренды до оплаты &
+    POST /api/bookings/{id}/complete/ (payment\_status='unpaid') &
+    status\_code=400, status='confirmed' \\ \hline
+
+    Завершение аренды после оплаты &
+    POST /api/bookings/{id}/complete/ (payment\_status='paid') &
+    status\_code=200, status='completed' \\ \hline
+
+    Сохранение цены после изменения объявления &
+    POST /api/bookings/
+    {id}/start\_payment/ после изменения price\_per\_day с 1500 на 3000 &
+    status\_code=200, amount=3000.00 (зафиксированный total\_price) \\ \hline
+
+    Отзыв от арендатора после завершения &
+    POST /api/bookings/{id}/review/: rating=5, comment='Отличная аренда' &
+    status\_code=201, объект Review создан в БД \\ \hline
+
+    Повторный отзыв от того же арендатора &
+    POST /api/bookings/{id}/review/: rating=1, comment='Хочу изменить' &
+    status\_code=400, rating первого отзыва сохраняется =5 \\ \hline
+
+    Отзыв от владельца объявления &
+    POST /api/bookings/{id}/review/: rating=5 (от owner) &
+    status\_code=403, Review не создаётся \\ \hline
+
+    Скрытие отзыва модератором &
+    review.hide
+    (reason='Offensive language') &
+    is\_hidden=true, reviews\_count=0, average\_rating=0 у объявления и владельца \\ \hline
+
+\end{xltabular}
+\renewcommand{\arraystretch}{1.0}

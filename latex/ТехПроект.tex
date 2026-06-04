@@ -1,0 +1,1219 @@
+\section{Технический проект}
+\subsection{Архитектура онлайн-площадки для сдачи вещей в аренду}
+
+Необходимо спроектировать и разработать веб-приложение для онлайн площадки для сдачи вещей в аренду. 
+Проектируемая программа представляет собой веб-приложение, построенное по архитектуре «клиент – сервер». Клиентская часть представлена веб-интерфейсом на HTML/CSS/JavaScript, который открывается в браузере пользователя. Серверная часть реализована на языке Python с использованием веб-фреймворка Django и предоставляет REST API для чтения и изменения данных. Хранение структурированных данных выполняется в СУБД PostgreSQL, кэширование и управление WebSocket-соединениями — в Redis. Развёртывание всех компонентов серверной части (Django, PostgreSQL, Redis, Nginx) выполняется с использованием системы контейнеризации Docker, что обеспечивает идентичность окружений на этапах разработки, тестирования и эксплуатации. 
+
+Общая схема взаимодействия компонентов приведена на рисунке \ref{uml:image}
+
+\begin{figure}[h]
+\center{\includegraphics[width=0.7\linewidth]{canvas}}
+\caption{Общая схема взаимодействия компонентов}
+\label{uml:image}
+\end{figure}
+
+Выбор такой архитектуры обоснован требованиями проекта: необходимо обеспечить одновременную работу пользовательской части (просмотр товаров, бронирование, чаты) и административной части с единой базой данных. Сервер централизует бизнес-логику, валидацию, контроль пересечения дат бронирования, а также статусную модель аренды.
+
+\subsection{Обоснование выбора технологии проектирования}
+
+При выборе технологического стека учитывались требования простоты развертывания, поддерживаемости, возможности работы с пользовательскими данными и транзакционного хранения сведений о товарах, бронированиях и договорах. Выбранный стек состоит из Python/Django на сервере, HTML/CSS/JavaScript на клиенте, PostgreSQL в качестве СУБД, Docker для контейнеризации, Nginx в качестве reverse-proxy сервера, а также Gunicorn и Daphne для обработки синхронных и асинхронных запросов соответственно.
+
+\subsubsection{Язык программирования Python}
+
+Python — мультипарадигменный, высокоуровневый язык программирования общего назначения с динамической строгой типизацией и автоматическим управлением памятью.Данный язык программирования широко используется в интернет-приложениях, разработке программного обеспечения, науке о данных и машинном обучении.
+
+\subsubsection{Веб-фреймворк Django}
+Django — это высокоуровневый веб-фреймворк на языке Python, предназначенный для быстрой разработки безопасных и масштабируемых веб-приложений. Он реализует архитектурный подход MVC/MVT и предоставляет разработчику набор встроенных инструментов для работы с маршрутизацией, моделями данных, шаблонами, аутентификацией, административной панелью и защитой от распространенных уязвимостей.
+\subsubsection{Система управления базами данных PostgreSQL}
+PostgreSQL — высокопроизводительная объектно-реляционная система управления базами данных с открытым исходным кодом. Она отличается высокой надежностью, поддержкой транзакций, расширенными возможностями работы с данными и соответствием современным требованиям к промышленным СУБД.
+\subsubsection{Cистема контейнеризации Docker}
+Docker — платформа для разработки, доставки и запуска приложений в изолированных контейнерах. Контейнеризация позволяет упаковать приложение со всеми его зависимостями в единый образ, который может быть воспроизведён на любой инфраструктуре. Использование Docker обеспечивает идентичность окружений на этапах разработки, тестирования и эксплуатации, упрощает развёртывание на сервере и масштабирование системы путём запуска нескольких экземпляров контейнеров.
+\subsubsection{Сервер-обработчик Nginx}
+Nginx — это высокопроизводительный веб-сервер и сервер-обработчик, широко применяемый при развертывании веб-приложений. Он используется для приема входящих HTTP-запросов, передачи их внутренним серверным компонентам, а также для обслуживания статических файлов.
+\subsubsection{WSGI-сервер Gunicorn}
+Gunicorn — это WSGI-сервер, предназначенный для запуска Python-веб-приложений в производственной среде. Он обеспечивает взаимодействие между веб-сервером и приложением, написанным на Django, и позволяет эффективно обслуживать множество запросов одновременно.
+\subsubsection{ASGI-сервер Daphne}
+Daphne — это ASGI-сервер для запуска асинхронных Python-веб-приложений. ASGI (Asynchronous Server Gateway Interface) является надстройкой над WSGI, добавляющей поддержку асинхронных протоколов, включая WebSocket, HTTP/2 и Server-Sent Events.
+
+\subsection{Архитектура серверного приложения}
+Серверная часть веб-приложения реализована как модульное Django-приложение с REST API и поддержкой обмена данными в реальном времени. Архитектура ориентирована на разделение ответственности между модулями: пользователи, каталог товаров, бронирования, договоры, чаты и уведомления. Такой подход обеспечивает управляемость кода и позволяет расширять функциональность без потери основного функционала.
+
+\subsubsection{Структурная декомпозиция и порядок запуска}
+Проект организован в виде набора Django-моделей: users, items, bookings, contracts, chats, notifications. Централизованная конфигурация находится в основном модуле, где задаются настройки, маршрутизация, ASGI/WSGI-точки входа и подключение инфраструктурных компонентов.
+Подсистема users отвечает за регистрацию, профиль и аутентификацию; items реализует каталог объявлений и изображения; bookings содержит ключевую бизнес-логику аренды, статусов и оплаты; contracts формирует договор и сценарий демонстрационной ЭЦП; chats и notifications обеспечивают коммуникацию и событийную модель.
+
+Точкой входа в серверное приложение является модуль manage.py, который инициирует запуск Django-проекта. При старте выполняются следующие этапы:
+\begin{itemize}
+    \item чтение переменных окружения;
+    \item применение миграций базы данных;
+    \item сбор статических файлов;
+    \item запуск Gunicorn (для синхронных HTTP-запросов);
+    \item запуск Daphne (для асинхронных WebSocket-соединений);
+    \item запуск reverse-proxy сервера Nginx.
+\end{itemize}
+
+\subsubsection{Диаграмма компонентов}
+На рисунке 3.1 представлена диаграмма компонентов проектируемого веб-приложения. На данной диаграмме изображены:
+\begin{enumerate}
+    \item Компонент «Nginx» является внешней точкой входа серверной части. Данный компонент принимает клиентский трафик и передает его во внутренний прикладной слой. Через Nginx проходит как REST-взаимодействие, так и WebSocket-соединения. 
+    \item Компонент «Django» выступает центральным прикладным компонентом, в котором реализованы бизнес-правила, маршрутизация API и обработка real-time событий. Через этот компонент организовано взаимодействие со всеми предметными модулями, а также с инфраструктурными сервисами хранения и доставки данных.
+    \item Компонент «Модуль пользователя» используется для регистрации, авторизации и работы с профилем пользователя. Он обеспечивает проверку принадлежности операций конкретному пользователю и участвует в механизмах разграничения доступа в других модулях системы.
+    \item Компонент «Модуль объявления» отвечает за каталог арендуемых вещей, категории, параметры объявлений и медиа-материалы. Данный модуль предоставляет данные для поиска и просмотра товаров, а также используется в сценариях оформления бронирования.
+    \item Компонент «Модуль бронирования» реализует обработку заявок на аренду, контроль статусов, проверку пересечения дат и платежное состояние сделки. На диаграмме отражено, что модуль бронирований связан с contracts и notifications: в первом случае — для юридического оформления аренды, во втором — для рассылки событий участникам сделки.
+    \item Компонент «Модуль договоров» отвечает за формирование договора аренды и фиксацию подписания сторонами (демонстрационная ЭЦП). Модуль получает данные из контура бронирований и возвращает признак подписанного документа, который влияет на дальнейшие этапы сделки.
+    \item Компонент «Модуль чатов» обеспечивает обмен сообщениями между участниками аренды в режиме реального времени. Согласно диаграмме, данный модуль связан с модулем уведомлений, что позволяет уведомлять пользователей о новых сообщениях.
+    \item Компонент «Модуль уведомлений» используется для формирования и хранения уведомлений о событиях системы: создании и изменении брони, подтверждении оплаты, новых сообщениях и отзывах. Компонент получает события от модуля бронирования и модуля чатов.
+    \item Компонент «PostgreSQL» является центральным хранилищем структурированных данных платформы. Через него сохраняются учетные записи, объявления, бронирования, договоры, сообщения и уведомления, обеспечивая целостность и согласованность состояния системы.
+    \item Компонент «Redis» применяется для поддержки событийного обмена в real-time контуре (Channels), прежде всего для WebSocket-сценариев. Это обеспечивает стабильную доставку сообщений и уведомлений в активные клиентские сессии.
+
+    \item Компонент «Медиа хранилище» предназначен для хранения файловых объектов системы: изображений товаров, медиа-вложений чатов и файлов договоров. Прикладной слой обращается к данному компоненту при загрузке и выдаче медиа-данных.
+
+    \item Компонент «SMTP» используется для отправки сервисных email-сообщений. Взаимодействие с почтовым каналом выполняется из серверного приложения через соответствующие сервисные функции.
+\end{enumerate}
+
+\begin{figure}[H]
+\center{\includegraphics[width=1\linewidth]{component}}
+\caption{Диаграмма компонентов}
+\label{component:image}
+\end{figure}
+\subsubsection{Маршрутизация API-endpoints}
+Серверная часть предоставляет REST API с единым префиксом /api. Аутентификация осуществляется с использованием JWT-токенов вида Authorization: Bearer <token>, передаваемых в заголовке. Для административных сценариев предусмотрен query-параметр, позволяющий получить полный набор записей (включая скрытые). 
+В таблице \ref{tab:api_endpoints} приведены основные API-endpoints серверной части.
+\begin{xltabular}{\textwidth}{|X|X|X|}
+\caption{Основные API-endpoints \label{tab:api_endpoints}}\\ \hline
+\leftrow Метод & \centrow Endpoint & \centrow Назначение\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:api_endpoints}}~
+\leftrow Метод & \centrow Endpoint & \centrow Назначение\\ \hline
+\finishhead
+
+\leftrow POST & \leftrow /api/token/ & \leftrow Получение JWT-пары (access/refresh)\\ \hline
+\leftrow POST & \leftrow /api/token/refresh/ & \leftrow Обновление access-токена\\ \hline
+
+\leftrow POST & \leftrow /api/users/register/ & \leftrow Регистрация нового пользователя\\ \hline
+\leftrow POST & \leftrow /api/users/send-email-code/ & \leftrow Отправка кода подтверждения на email\\ \hline
+\leftrow GET, PUT & \leftrow /api/users/profile/ & \leftrow Просмотр и обновление профиля\\ \hline
+\leftrow POST & \leftrow /api/users/change-password/ & \leftrow Смена пароля авторизованным пользователем\\ \hline
+\leftrow POST & \leftrow /api/users/password-reset/request/ & \leftrow Запрос кода восстановления пароля\\ \hline
+\leftrow POST & \leftrow /api/users/password-reset/confirm/ & \leftrow Подтверждение кода и установка нового пароля\\ \hline
+\leftrow POST & \leftrow /api/users/fill-by-inn/ & \leftrow Автозаполнение реквизитов по ИНН\\ \hline
+
+\leftrow GET, POST & \leftrow /api/items/categories/ & \leftrow Список и создание категорий\\ \hline
+\leftrow GET, POST & \leftrow /api/items/ & \leftrow Список товаров и создание объявления\\ \hline
+\leftrow GET, PUT, PATCH, DELETE & \leftrow /api/items/\{id\}/ & \leftrow Получение, изменение и удаление товара\\ \hline
+\leftrow GET & \leftrow /api/items/\{id\}
+/booked\_ranges/ & \leftrow Получение занятых диапазонов дат\\ \hline
+\leftrow GET, POST & \leftrow /api/items/\{id\}/reviews/ & \leftrow Список и добавление отзывов к товару\\ \hline
+\leftrow POST & \leftrow /api/items/upload-image/ & \leftrow Загрузка изображения товара\\ \hline
+\leftrow DELETE & \leftrow /api/items/images/\{id\}/ & \leftrow Удаление изображения товара\\ \hline
+\leftrow GET, POST & \leftrow /api/items/moderation-requests/ & \leftrow Список заявок на модерацию и подача новой\\ \hline
+
+\leftrow GET, POST & \leftrow /api/bookings/ & \leftrow Список бронирований и создание заявки\\ \hline
+\leftrow GET & \leftrow /api/bookings/\{id\}/ & \leftrow Получение данных бронирования\\ \hline
+\leftrow POST & \leftrow /api/bookings
+/\{id\}/confirm/ & \leftrow Подтверждение брони владельцем\\ \hline
+\leftrow POST & \leftrow /api/bookings
+/\{id\}/cancel/ & \leftrow Отмена бронирования участником сделки\\ \hline
+\leftrow POST & \leftrow /api/bookings
+/\{id\}/renter\_cancel/ & \leftrow Отмена бронирования арендатором с указанием причины\\ \hline
+\leftrow POST & \leftrow /api/bookings
+/\{id\}/complete/ & \leftrow Завершение аренды владельцем\\ \hline
+\leftrow POST & \leftrow /api/bookings
+/\{id\}/start\_payment/ & \leftrow Инициализация платёжной сессии\\ \hline
+\leftrow POST & \leftrow /api/bookings
+/\{id\}/confirm\_payment/ & \leftrow Подтверждение оплаты\\ \hline
+\leftrow POST & \leftrow /api/bookings/\{id\}
+/confirm\_renter\_pickup/ & \leftrow Подтверждение получения товара арендатором\\ \hline
+\leftrow POST & \leftrow /api/bookings/\{id\}
+/confirm\_owner\_return/ & \leftrow Подтверждение возврата товара владельцем\\ \hline
+\leftrow POST & \leftrow /api/bookings/\{id\}
+/return\_deposit/ & \leftrow Возврат залога арендатору\\ \hline
+\leftrow POST & \leftrow /api/bookings
+/\{id\}/request\_refund/ & \leftrow Запрос возврата средств арендатором\\ \hline
+\leftrow POST & \leftrow /api/bookings
+/\{id\}/process\_refund/ & \leftrow Обработка возврата средств\\ \hline
+\leftrow POST & \leftrow /api/bookings
+/\{id\}/review/ & \leftrow Оставить отзыв по завершённому бронированию\\ \hline
+
+
+
+
+\leftrow GET & \leftrow /api/schema/ & \leftrow OpenAPI-схема\\ \hline
+\leftrow GET & \leftrow /api/docs/ & \leftrow Интерактивная документация Swagger UI\\ \hline
+\end{xltabular}
+
+Обмен данными между клиентом и сервером выполняется в формате JSON по протоколу HTTP. Для операций с файлами (загрузка изображений в каталог и фотографий при приёмке/возврате товара) используется multipart/form-data.
+
+Структура ответов соответствует практике DRF: при успешных операциях возвращаются сериализованные объекты предметной области (пользователь, товар, бронирование), а при ошибках — JSON-объект с диагностикой и HTTP-кодом (400, 403, 404 и др.). Для коллекций используется пагинация, что особенно важно для списков товаров и бронирований. Примеры ответов в формате JSON приведены ниже.
+
+Пример успешного ответа POST /api/token/:
+
+\begin{verbatim}
+{
+  "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.
+  eyJ0b2tlbl90eXBlIjoicmV
+  mcmVzaCIsImV4cCI6MTc3ODkzNjUzMSwiaWF0IjoxNzc4ODU
+  wMTMxLCJqdGkiOiIyYWEzOTc3M2JkNmI
+  0MDZlYTBmMWU4NDcwMjE0Y2NjNSIsInVzZXJfaWQiOiIxIn
+  0.-NmgKonAW-zYhopagAP0-QL4MVdyaQ4f026njo21yQg",
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.
+  eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxN
+  zc4ODUzNzMxLCJpYXQiOjE3Nzg4NTAxMzEsImp0aS
+  I6IjBkMDM4ZGMzYmRlNzQ4NWI4NGViYTY4MGVhMj
+  FmZmQzIiwidXNlcl9pZCI6IjEifQ.GH8jxpDq7jR2NCh10a7iUO29ZvP7ucLTNCQg6cPuz_8"
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/token/refresh/
+
+\begin{verbatim}
+{
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.
+  eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc
+  4ODUzODE2LCJpYXQiOjE3Nzg4NTAyMTYsImp0aSI6Ij
+  c1ODgzZjI2OGUyYzQ5OWZhOTFjMjA2ZTM
+  wOWY3Y2E5IiwidXNlcl9pZCI6IjEifQ.IN
+  Q1_mKq3DCIhqYFuaHsq0c58vYooRF4bkzIa9Yb45s"
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/users/register/
+
+\begin{verbatim}
+{
+  "username": "ermuk",
+  "email": "user@gmail.com",
+  "user_type": "individual",
+  "full_name": "Иванов Иван Иванович",
+  "entrepreneur_name": "",
+  "company_name": "",
+  "passport_series": "1111",
+  "passport_number": "111111",
+  "inn": "111111111111",
+  "kpp": "",
+  "ogrnip": ""
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/users/send-email-code/
+
+\begin{verbatim}
+{
+  "detail": "Код подтверждения отправлен на email."
+}
+\end{verbatim}
+
+Пример успешного ответа GET /api/users/profile/
+
+\begin{verbatim}
+{
+  "username": "ermuk",
+  "email": "prectosic@gmail.com",
+  "user_type": "individual",
+  "full_name": "Иванов Иван Иванович",
+  "entrepreneur_name": "",
+  "company_name": "",
+  "passport_series": "1111",
+  "passport_number": "111111",
+  "inn": "111111111111",
+  "kpp": "",
+  "ogrnip": ""
+}
+\end{verbatim}
+
+Пример успешного ответа PUT /api/users/profile/
+
+\begin{verbatim}
+{
+  "username": "ermuk",
+  "email": "prectosic@gmail.com",
+  "user_type": "individual",
+  "full_name": "Иванов Иван Иванович",
+  "entrepreneur_name": "",
+  "company_name": "",
+  "passport_series": "1111",
+  "passport_number": "111111",
+  "inn": "111111111111",
+  "kpp": "",
+  "ogrnip": ""
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/users/change-password/
+
+\begin{verbatim}
+{
+  "detail": "Пароль успешно изменён."
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/users/password-reset/request/
+
+\begin{verbatim}
+{
+  "detail": "Код восстановления отправлен на email."
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/users/password-reset/confirm/
+
+\begin{verbatim}
+{
+  "detail": "Пароль успешно сброшен."
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/users/fill-by-inn/
+
+\begin{verbatim}
+{
+  "full_name": "Иванов Иван Иванович",
+  "company_name": "",
+  "entrepreneur_name": "ИП Иванов Иван Иванович",
+  "kpp": "",
+  "ogrnip": "123456789012345"
+}
+\end{verbatim}
+
+Пример успешного ответа GET /api/items/categories/
+
+\begin{verbatim}
+{
+  "count": 6,
+  "next": null,
+  "previous": null,
+  "results": [
+    { "id": 1, "name": "string" },
+    { "id": 6, "name": "Дом и сад" },
+    { "id": 3, "name": "Инструменты" },
+    { "id": 4, "name": "Одежда" },
+    { "id": 5, "name": "Спорт" },
+    { "id": 2, "name": "Электроника" }
+  ]
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/items/categories/
+
+\begin{verbatim}
+{
+  "id": 7,
+  "name": "Крепеж"
+}
+\end{verbatim}
+
+Пример успешного ответа GET /api/items/
+
+\begin{verbatim}
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 2,
+      "images": [
+        {
+          "id": 2,
+          "image": "http://localhost/media/items/bd1294c75f7a56651676df8759d14e79.jpg"
+        }
+      ],
+      "booked_ranges": [],
+      "owner_username": "ermuk",
+      "item_reviews": [],
+      "owner_rating": "0.00",
+      "owner_reviews_count": 0,
+      "title": "ааа",
+      "description": "aaa",
+      "price_per_day": "111.00",
+      "average_rating": "0.00",
+      "reviews_count": 0,
+      "status": "available",
+      "created_at": "2026-05-13T11:55:30.385864Z",
+      "owner": 1,
+      "category": null
+    }
+  ]
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/items/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "images": [],
+  "booked_ranges": [],
+  "owner_username": "ermuk",
+  "category_name": "string",
+  "item_reviews": [],
+  "owner_rating": "0.00",
+  "owner_reviews_count": 0,
+  "title": "тест",
+  "description": "тест",
+  "price_per_day": "81.00",
+  "average_rating": "0.00",
+  "reviews_count": 0,
+  "status": "available",
+  "created_at": "2026-05-15T13:33:19.355414Z",
+  "owner": 1,
+  "category": 1
+}
+\end{verbatim}
+
+Пример успешного ответа GET /api/items/\{id\}/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "images": [],
+  "booked_ranges": [],
+  "owner_username": "ermuk",
+  "category_name": "string",
+  "item_reviews": [],
+  "owner_rating": "0.00",
+  "owner_reviews_count": 0,
+  "title": "тест",
+  "description": "тест",
+  "price_per_day": "81.00",
+  "average_rating": "0.00",
+  "reviews_count": 0,
+  "status": "available",
+  "created_at": "2026-05-15T13:33:19.355414Z",
+  "owner": 1,
+  "category": 1
+}
+\end{verbatim}
+
+Пример успешного ответа PUT /api/items/\{id\}/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "images": [],
+  "booked_ranges": [],
+  "owner_username": "ermuk",
+  "category_name": "string",
+  "item_reviews": [],
+  "owner_rating": "0.00",
+  "owner_reviews_count": 0,
+  "title": "тест",
+  "description": "тест",
+  "price_per_day": "81.00",
+  "average_rating": "0.00",
+  "reviews_count": 0,
+  "status": "available",
+  "created_at": "2026-05-15T13:33:19.355414Z",
+  "owner": 1,
+  "category": 1
+}
+\end{verbatim}
+
+Пример успешного ответа PATCH /api/items/\{id\}/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "images": [],
+  "booked_ranges": [],
+  "owner_username": "ermuk",
+  "category_name": "string",
+  "item_reviews": [],
+  "owner_rating": "0.00",
+  "owner_reviews_count": 0,
+  "title": "тест",
+  "description": "тест",
+  "price_per_day": "81.00",
+  "average_rating": "0.00",
+  "reviews_count": 0,
+  "status": "available",
+  "created_at": "2026-05-15T13:33:19.355414Z",
+  "owner": 1,
+  "category": 1
+}
+\end{verbatim}
+
+Пример успешного ответа DELETE /api/items/\{id\}/
+
+\begin{verbatim}
+{
+  "detail": ""
+}
+\end{verbatim}
+
+Пример успешного ответа GET /api/items/\{id\}/booked\_ranges/
+
+\begin{verbatim}
+[
+  {
+    "start_date": "2026-05-13",
+    "end_date": "2026-05-14"
+  },
+  {
+    "start_date": "2026-05-17",
+    "end_date": "2026-05-18"
+  }
+]
+\end{verbatim}
+
+Пример успешного ответа GET /api/items/\{id\}/reviews/
+
+\begin{verbatim}
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 12,
+      "item": 5,
+      "author": 7,
+      "author_username": "ivan",
+      "rating": 5,
+      "comment": "Отличное объявление",
+      "created_at": "2026-05-15T12:34:56.789012+03:00"
+    },
+    {
+      "id": 11,
+      "item": 5,
+      "author": 8,
+      "author_username": "olga",
+      "rating": 4,
+      "comment": "Все хорошо",
+      "created_at": "2026-05-14T10:20:30.123456+03:00"
+    }
+  ]
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/items/\{id\}/reviews/
+
+\begin{verbatim}
+{
+  "id": 12,
+  "item": 5,
+  "author": 7,
+  "author_username": "ivan",
+  "rating": 5,
+  "comment": "Отличное объявление",
+  "created_at": "2026-05-15T12:34:56.789012+03:00"
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/items/upload-image/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "image": "/media/items/test.jpg"
+}
+\end{verbatim}
+
+Пример успешного ответа DELETE /api/items/images/\{id\}/
+
+\begin{verbatim}
+{
+  "detail": "Изображение удалено."
+}
+\end{verbatim}
+
+Пример успешного ответа GET /api/items/moderation-requests/
+
+\begin{verbatim}
+{
+  "count": 1,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "item": 3,
+      "item_title": "Перфоратор Bosch",
+      "status": "pending",
+      "created_at": "2026-05-15T10:00:00.000000Z"
+    }
+  ]
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/items/moderation-requests/
+
+\begin{verbatim}
+{
+  "id": 2,
+  "item": 4,
+  "item_title": "Шуруповёрт Makita",
+  "status": "pending",
+  "created_at": "2026-05-20T09:15:00.000000Z"
+}
+\end{verbatim}
+
+Пример успешного ответа GET /api/bookings/
+
+\begin{verbatim}
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 2,
+      "item_title": "ааа",
+      "renter_username": "Admin",
+      "renter_email": "enot.valentin@yandex.ru",
+      "has_review": false,
+      "can_leave_review": true,
+      "review": null,
+      "start_date": "2026-05-17",
+      "end_date": "2026-05-18",
+      "total_price": "111.00",
+      "status": "confirmed",
+      "payment_method": "sbp",
+      "payment_status": "paid",
+      "payment_reference": "ecae5239-8012-4fbb-a45d-49572ee1e504",
+      "payment_expires_at": null,
+      "paid_at": "2026-05-15T15:04:38.034157Z",
+      "created_at": "2026-05-13T11:28:43.708629Z",
+      "item": 1,
+      "renter": 2
+    }
+  ]
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "pending",
+  "payment_method": "sbp",
+  "payment_status": "unpaid",
+  "payment_reference": null,
+  "payment_expires_at": null,
+  "paid_at": null,
+  "created_at": "2026-05-15T15:08:38.941316Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа GET /api/bookings/\{id\}/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "pending",
+  "payment_method": "sbp",
+  "payment_status": "unpaid",
+  "payment_reference": null,
+  "payment_expires_at": null,
+  "paid_at": null,
+  "created_at": "2026-05-15T15:08:38.941316Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/confirm/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "confirmed",
+  "payment_method": "sbp",
+  "payment_status": "unpaid",
+  "payment_reference": null,
+  "payment_expires_at": null,
+  "paid_at": null,
+  "created_at": "2026-05-15T15:08:38.941316Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/cancel/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "cancelled",
+  "payment_method": "sbp",
+  "payment_status": "unpaid",
+  "payment_reference": null,
+  "payment_expires_at": null,
+  "paid_at": null,
+  "created_at": "2026-05-15T15:08:38.941316Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/renter\_cancel/
+
+\begin{verbatim}
+{
+  "id": 3,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "cancelled",
+  "payment_method": "sbp",
+  "payment_status": "refunded",
+  "payment_reference": null,
+  "payment_expires_at": null,
+  "paid_at": null,
+  "renter_cancel_reason": "Изменились планы",
+  "created_at": "2026-05-15T15:08:38.941316Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/complete/
+
+\begin{verbatim}
+{
+  "id": 4,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "completed",
+  "payment_method": "sbp",
+  "payment_status": "paid",
+  "payment_reference": null,
+  "payment_expires_at": null,
+  "paid_at": null,
+  "created_at": "2026-05-15T15:11:29.438091Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/start\_payment/
+
+\begin{verbatim}
+{
+  "id": 4,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "confirmed",
+  "payment_method": "sbp",
+  "payment_status": "pending",
+  "payment_reference": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "payment_expires_at": "2026-05-15T15:11:29.438091Z",
+  "paid_at": null,
+  "created_at": "2026-05-15T15:11:29.438091Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/confirm\_payment/
+
+\begin{verbatim}
+{
+  "id": 4,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "completed",
+  "payment_method": "sbp",
+  "payment_status": "paid",
+  "payment_reference": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "payment_expires_at": "2026-05-15T15:11:29.438091Z",
+  "paid_at": null,
+  "created_at": "2026-05-15T15:11:29.438091Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/confirm\_renter\_pickup/
+
+\begin{verbatim}
+{
+  "id": 4,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "confirmed",
+  "payment_method": "sbp",
+  "payment_status": "paid",
+  "renter_pickup_confirmed": true,
+  "renter_pickup_confirmed_at": "2026-05-15T16:00:00.000000Z",
+  "renter_pickup_photo": "/media/bookings/pickup_4.jpg",
+  "owner_return_confirmed": false,
+  "owner_return_confirmed_at": null,
+  "owner_return_photo": null,
+  "created_at": "2026-05-15T15:11:29.438091Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/confirm\_owner\_return/
+
+\begin{verbatim}
+{
+  "id": 4,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": true,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "completed",
+  "payment_method": "sbp",
+  "payment_status": "paid",
+  "renter_pickup_confirmed": true,
+  "renter_pickup_confirmed_at": "2026-05-15T16:00:00.000000Z",
+  "renter_pickup_photo": "/media/bookings/pickup_4.jpg",
+  "owner_return_confirmed": true,
+  "owner_return_confirmed_at": "2026-05-16T12:00:00.000000Z",
+  "owner_return_photo": "/media/bookings/return_4.jpg",
+  "created_at": "2026-05-15T15:11:29.438091Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/return\_deposit/
+
+\begin{verbatim}
+{
+  "id": 4,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": true,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "completed",
+  "payment_method": "sbp",
+  "payment_status": "paid",
+  "deposit_amount": "500.00",
+  "deposit_status": "returned",
+  "created_at": "2026-05-15T15:11:29.438091Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/request\_refund/
+
+\begin{verbatim}
+{
+  "id": 4,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "confirmed",
+  "payment_method": "sbp",
+  "payment_status": "paid",
+  "return_requested": true,
+  "return_requested_at": "2026-05-16T10:00:00.000000Z",
+  "return_reason": "Товар не соответствует описанию",
+  "return_status": "pending",
+  "created_at": "2026-05-15T15:11:29.438091Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/process\_refund/
+
+\begin{verbatim}
+{
+  "id": 4,
+  "item_title": "ааа",
+  "renter_username": "Admin",
+  "renter_email": "enot.valentin@yandex.ru",
+  "has_review": false,
+  "can_leave_review": false,
+  "review": null,
+  "start_date": "2026-05-15",
+  "end_date": "2026-05-16",
+  "total_price": "111.00",
+  "status": "cancelled",
+  "payment_method": "sbp",
+  "payment_status": "refunded",
+  "return_requested": true,
+  "return_status": "approved",
+  "created_at": "2026-05-15T15:11:29.438091Z",
+  "item": 1,
+  "renter": 2
+}
+\end{verbatim}
+
+Пример успешного ответа POST /api/bookings/\{id\}/review/
+
+\begin{verbatim}
+{
+  "id": 7,
+  "booking": 4,
+  "item_id": 1,
+  "rating": 5,
+  "comment": "Всё отлично, вещь в хорошем состоянии.",
+  "created_at": "2026-05-20T10:15:00.000000Z",
+  "author_username": "Admin"
+}
+\end{verbatim}
+
+Пример успешного ответа GET /api/schema/
+
+\begin{verbatim}
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Arenda API",
+    "version": "1.0.0",
+    "description": "API для онлайн площадки аренды вещей"
+  }
+}
+\end{verbatim}
+
+
+\subsection{Модель данных}
+
+Сущности и отношение между таблицами базы данных отражены на
+рисунке \ref{db:image}.
+
+\begin{figure}[H]
+\center{\includegraphics[width=1\linewidth]{db}}
+\caption{ER-диаграмма}
+\label{db:image}
+\end{figure}
+
+\subsubsection{Нормализация схемы данных}
+
+Схема данных приведена к третьей нормализованной форме. Повторяющиеся группы данных вынесены в отдельные таблицы: категории отделены от товаров, медиа хранится отдельно от карточки товара, сообщения отделены от чатов. Это устраняет избыточность и снижает риск аномалий при обновлении данных. Зависимости между полями организованы по принципу «атрибут зависит от ключа и только от ключа».
+\subsubsection{Описание структуры таблиц}
+В таблице \ref{tab:user} представлена структура таблицы User. Данная таблица содержит данные о пользователях платформы: уникальный идентификатор, имя пользователя, адрес электронной почты, пароль, тип пользователя (физическое лицо, ИП, юридическое лицо), номер телефона, ФИО, наименование ИП или компании, паспортные реквизиты, ИНН, КПП, ОГРНИП, признак заполненности профиля, средний рейтинг и количество отзывов.
+
+\begin{xltabular}{\textwidth}{|c|X|с|с|}
+\caption{Таблица User \label{tab:user}}\\ \hline
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:user}}~
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\finishhead
+\leftrow primary key & id & \leftrow Integer & \leftrow true\\ \hline
+ & username & \leftrow Text & \leftrow true\\ \hline
+ & email & \leftrow Text & \leftrow true\\ \hline
+ & password & \leftrow Text & \leftrow true\\ \hline
+ & user\_type & \leftrow Text & \leftrow true\\ \hline
+ & phone & \leftrow Text & \leftrow false\\ \hline
+ & full\_name & \leftrow Text & \leftrow false\\ \hline
+ & entrepreneur\_name & \leftrow Text & \leftrow false\\ \hline
+ & company\_name & \leftrow Text & \leftrow false\\ \hline
+ & passport\_series & \leftrow Text & \leftrow false\\ \hline
+ & passport\_number & \leftrow Text & \leftrow false\\ \hline
+ & inn & \leftrow Text & \leftrow false\\ \hline
+ & kpp & \leftrow Text & \leftrow false\\ \hline
+ & ogrnip & \leftrow Text & \leftrow false\\ \hline
+ & profile\_completed & \leftrow Boolean & \leftrow true\\ \hline
+ & average\_rating & \leftrow Decimal & \leftrow true\\ \hline
+ & reviews\_count & \leftrow Integer & \leftrow true\\ \hline
+\end{xltabular}
+
+В таблице \ref{tab:category} представлена структура таблицы Category. Данная таблица содержит данные о категориях товаров: уникальный идентификатор и наименование категории.
+
+\begin{xltabular}{\textwidth}{|c|X|с|с|}
+\caption{Таблица Category \label{tab:category}}\\ \hline
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:category}}~
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\finishhead
+\leftrow primary key & id & \leftrow Integer & \leftrow true\\ \hline
+ & name & \leftrow Text & \leftrow true\\ \hline
+\end{xltabular}
+
+В таблице \ref{tab:item} представлена структура таблицы Item. Данная таблица содержит данные о товарах, размещаемых для аренды: уникальный идентификатор, идентификатор владельца, идентификатор категории, название, описание, стоимость аренды за сутки, размер залога, статус доступности, средний рейтинг, количество отзывов и дату создания записи.
+ 
+\begin{xltabular}{\textwidth}{|c|X|с|с|}
+\caption{Таблица Item \label{tab:item}}\\ \hline
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:item}}~
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\finishhead
+\leftrow primary key & id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & owner\_id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & category\_id & \leftrow Integer & \leftrow false\\ \hline
+ & title & \leftrow Text & \leftrow true\\ \hline
+ & description & \leftrow Text & \leftrow true\\ \hline
+ & price\_per\_day & \leftrow Decimal & \leftrow true\\ \hline
+ & deposit & \leftrow Decimal & \leftrow true\\ \hline
+ & status & \leftrow Text & \leftrow true\\ \hline
+ & average\_rating & \leftrow Decimal & \leftrow true\\ \hline
+ & reviews\_count & \leftrow Integer & \leftrow true\\ \hline
+ & created\_at & \leftrow DateTime & \leftrow true\\ \hline
+\end{xltabular}
+
+В таблице \ref{tab:itemimage} представлена структура таблицы ItemImage. Данная таблица содержит данные об изображениях товаров: уникальный идентификатор, идентификатор товара, путь к файлу изображения и дату загрузки.
+
+\begin{xltabular}{\textwidth}{|c|X|с|с|}
+\caption{Таблица ItemImage \label{tab:itemimage}}\\ \hline
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:itemimage}}~
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\finishhead
+\leftrow primary key & id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & item\_id & \leftrow Integer & \leftrow true\\ \hline
+ & image & \leftrow Text & \leftrow true\\ \hline
+ & uploaded\_at & \leftrow DateTime & \leftrow true\\ \hline
+\end{xltabular}
+
+
+В таблице \ref{tab:booking} представлена структура таблицы Booking. Данная таблица содержит данные о бронированиях: уникальный идентификатор, идентификатор товара, идентификатор арендатора, дату начала и окончания аренды, итоговую стоимость, сумму аренды без залога и комиссии, сервисный сбор платформы, статус бронирования, способ оплаты, статус оплаты, платёжный идентификатор, срок действия платёжной сессии, время подтверждения оплаты, данные залога (сумма, статус, идентификатор, срок сессии, время оплаты), данные о подтверждении получения товара арендатором и возврата товара арендодателем (с фотографиями), данные о запросе возврата средств, причину отказа арендатора и дату создания бронирования.
+ 
+\begin{xltabular}{\textwidth}{|c|X|с|с|}
+\caption{Таблица Booking \label{tab:booking}}\\ \hline
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:booking}}~
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\finishhead
+\leftrow primary key & id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & item\_id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & renter\_id & \leftrow Integer & \leftrow true\\ \hline
+ & start\_date & \leftrow Date & \leftrow true\\ \hline
+ & end\_date & \leftrow Date & \leftrow true\\ \hline
+ & total\_price & \leftrow Decimal & \leftrow false\\ \hline
+ & rent\_amount & \leftrow Decimal & \leftrow false\\ \hline
+ & platform\_fee & \leftrow Decimal & \leftrow false\\ \hline
+ & status & \leftrow Text & \leftrow true\\ \hline
+ & payment\_method & \leftrow Text & \leftrow true\\ \hline
+ & payment\_status & \leftrow Text & \leftrow true\\ \hline
+ & payment\_reference & \leftrow Text & \leftrow false\\ \hline
+ & payment\_expires\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & paid\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & deposit\_amount & \leftrow Decimal & \leftrow false\\ \hline
+ & deposit\_status & \leftrow Text & \leftrow false\\ \hline
+ & deposit\_reference & \leftrow Text & \leftrow false\\ \hline
+ & deposit\_expires\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & deposit\_paid\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & renter\_pickup\_confirmed & \leftrow Boolean & \leftrow true\\ \hline
+ & renter\_pickup\_confirmed\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & renter\_pickup\_photo & \leftrow Text & \leftrow false\\ \hline
+ & owner\_return\_confirmed & \leftrow Boolean & \leftrow true\\ \hline
+ & owner\_return\_confirmed\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & owner\_return\_photo & \leftrow Text & \leftrow false\\ \hline
+ & return\_requested & \leftrow Boolean & \leftrow true\\ \hline
+ & return\_requested\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & return\_reason & \leftrow Text & \leftrow false\\ \hline
+ & return\_status & \leftrow Text & \leftrow false\\ \hline
+ & renter\_cancel\_reason & \leftrow Text & \leftrow false\\ \hline
+ & created\_at & \leftrow DateTime & \leftrow true\\ \hline
+\end{xltabular}
+
+В таблице \ref{tab:contract} представлена структура таблицы Contract. Данная таблица содержит данные о договорах аренды: уникальный идентификатор, идентификатор бронирования, номер договора, путь к файлу договора, признак подписания, данные подписи арендатора (ФИО подписанта, код подписи, дата и время подписи), данные подписи владельца (ФИО подписанта, код подписи, дата и время подписи), общее время подписания договора и дату создания записи.
+
+\begin{xltabular}{\textwidth}{|c|X|с|с|}
+\caption{Таблица Contract \label{tab:contract}}\\ \hline
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:contract}}~
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\finishhead
+\leftrow primary key & id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & booking\_id & \leftrow Integer & \leftrow true\\ \hline
+ & document\_number & \leftrow Text & \leftrow true\\ \hline
+ & file & \leftrow Text & \leftrow false\\ \hline
+ & is\_signed & \leftrow Boolean & \leftrow true\\ \hline
+ & renter\_sig\-ner\_name & \leftrow Text & \leftrow false\\ \hline
+ & renter\_sig\-nature\_code & \leftrow Text & \leftrow false\\ \hline
+ & renter\_sig\-ned\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & owner\_sig\-ner\_name & \leftrow Text & \leftrow false\\ \hline
+ & owner\_sig\-nature\_code & \leftrow Text & \leftrow false\\ \hline
+ & owner\_sig\-ned\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & signed\_at & \leftrow DateTime & \leftrow false\\ \hline
+ & created\_at & \leftrow DateTime & \leftrow true\\ \hline
+\end{xltabular}
+
+
+В таблице \ref{tab:review} представлена структура таблицы Review. Данная таблица содержит данные об отзывах на товары: уникальный идентификатор, идентификатор товара, идентификатор автора отзыва, оценку, комментарий и дату создания.
+\begin{xltabular}{\textwidth}{|c|X|с|с|}
+\caption{Таблица Review \label{tab:review}}\\ \hline
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:review}}~
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\finishhead
+\leftrow primary key & id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & item\_id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & author\_id & \leftrow Integer & \leftrow true\\ \hline
+ & rating & \leftrow Integer & \leftrow true\\ \hline
+ & comment & \leftrow Text & \leftrow false\\ \hline
+ & created\_at & \leftrow DateTime & \leftrow true\\ \hline
+\end{xltabular}
+
+В таблице \ref{tab:chat} представлена структура таблицы Chat. Данная таблица содержит данные о чатах: уникальный идентификатор, идентификатор связанного товара (при наличии) и дату создания чата.
+
+\begin{xltabular}{\textwidth}{|c|X|с|с|}
+\caption{Таблица Chat \label{tab:chat}}\\ \hline
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:chat}}~
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\finishhead
+\leftrow primary key & id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & item\_id & \leftrow Integer & \leftrow false\\ \hline
+ & created\_at & \leftrow DateTime & \leftrow true\\ \hline
+\end{xltabular}
+
+В таблице \ref{tab:message} представлена структура таблицы Message. Данная таблица содержит данные о сообщениях в чатах: уникальный идентификатор, идентификатор чата, идентификатор отправителя, текст сообщения, путь к изображению, дату и время отправки, а также признак прочтения.
+
+\begin{xltabular}{\textwidth}{|c|X|с|с|}
+\caption{Таблица Message \label{tab:message}}\\ \hline
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\endfirsthead
+\continuecaption{Продолжение таблицы \ref{tab:message}}~
+\leftrow Тип ключа & \centrow Имя столбца & \centrow Тип данных & \centrow Обязательность\\ \hline
+\finishhead
+\leftrow primary key & id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & chat\_id & \leftrow Integer & \leftrow true\\ \hline
+\leftrow foreign key & sender\_id & \leftrow Integer & \leftrow true\\ \hline
+ & text & \leftrow Text & \leftrow false\\ \hline
+ & image & \leftrow Text & \leftrow false\\ \hline
+ & created\_at & \leftrow DateTime & \leftrow true\\ \hline
+ & is\_read & \leftrow Boolean & \leftrow true\\ \hline
+\end{xltabular}
+
+\subsection{Реализация бизнес-логики}
+
+Бизнес-логика системы реализована на сервере и охватывает полный цикл аренды: публикацию товара, бронирование, подписание договора, оплату и отзыв. Основные проверки выполняются в backend, что исключает зависимость корректности процесса от клиентской части.
+
+\subsubsection{Управление товарами}
+
+Модуль объявлений реализует CRUD-операции для объявлений. Создание и изменение товара доступны только авторизованному владельцу, а проверка прав выполняется на уровне permission-классов. Это предотвращает редактирование чужих объявлений и подмену владельца через запрос.
+
+Загрузка фотографий вынесена в отдельный endpoint. Перед сохранением сервер проверяет существование товара и его принадлежность текущему пользователю.
+
+\subsubsection{Бронирование и проверка конфликтов дат}
+При создании бронирования сервер проверяет, что пользователь не арендует собственную вещь, а также корректность диапазона дат. Конфликт дат определяется по условию пересечения интервалов с активными бронированиями, что исключает двойную бронь.
+
+Стоимость фиксируется в момент создания заявки и не зависит от последующего изменения цены товара. Для интерфейса календаря реализован endpoint занятых диапазонов, чтобы клиент мог сразу блокировать недоступные даты.
+
+Договор считается полностью подписанным только после двух подписей. Этот статус используется как обязательное условие для перехода к оплате.
+\subsubsection{Платёжный модуль}
+Оплата реализована как демонстрационный сценарий: создается платежная сессия с идентификатором и временем жизни, а после подтверждения статус оплаты меняется на подтвержденный. Оплата доступна только для подтвержденной брони и только после полного подписания договора.
+
+\subsubsection{Система отзывов и рейтинга}
+Отзыв может оставить только арендатор по оплаченной или завершенной сделке. После добавления (или скрытия/удаления) отзыва сервер автоматически пересчитывает средний рейтинг и количество отзывов для товара и владельца. Это поддерживает актуальную репутационную модель и повышает доверие к платформе.
+
+\subsection{Информационная безопасность}
+Серверная часть веб-приложения обрабатывает персональные данные, сведения о бронированиях, платежные статусы и переписку пользователей, поэтому требования безопасности являются критичными. Основные риски связаны с несанкционированным доступом к операциям, подменой параметров запросов, попытками изменения чужих данных и нарушением логики бизнес-процессов.
+
+В проекте защита строится на JWT-аутентификации, проверках прав доступа и серверной валидации бизнес-правил. Изменять объявления может только владелец. Дополнительно реализованы проверки дат, запрет бронирования собственной вещи и контроль пересечений периодов аренды.
+\subsubsection{Профиль угроз}
+Профиль угроз включает:
+\begin{itemize}
+    \item несанкционированный доступ к API и данным пользователей;
+    \item подмену бизнес-операций (статусы, чужие ресурсы);
+    \item компрометацию токенов и учетных данных;
+    \item эксплуатационные риски небезопасной конфигурации.
+\end{itemize}
+\subsubsection{Меры защиты}
+Меры защиты включают JWT, permission-политику, валидацию входных данных и ограничение бизнес-переходов на сервере. Для договоров применяется двустороннее подписание, а оплата разрешена только после выполнения необходимых условий сделки.
+\subsection{Эксплуатация и развёртывание}
+Развёртывание выполнено в контейнерной архитектуре: Django-приложение, PostgreSQL, Redis и Nginx запускаются через Docker Compose. Такой подход обеспечивает воспроизводимость окружения и упрощает сопровождение.
+Параметры конфигурации (переменные окружения) вынесены в окружение:
+\begin{itemize}
+    \item DEBUG;
+    \item SECRET-KEY;
+    \item параметры БД;
+    \item SMTP-данные.
+\end{itemize}
+Типовой сценарий развёртывания:
+\begin{enumerate}
+    \item Запуск контейнеров через Docker Compose.
+    \item Создание и применение миграций. 
+    \item Создание администратора и проверка доступности API. 
+\end{enumerate}
+
+
+
+
